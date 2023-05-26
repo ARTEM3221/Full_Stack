@@ -1,18 +1,18 @@
-import mongoos from "mongoose";
+import mongoose from "mongoose";
 
-const UserSchema = new mongoos.Schema({
+const UserSchema = new mongoose.Schema({
     fullName: {
         type: String,
-        require: true,
+        required: true,
     },
     email: {
         type: String,
-        require: true,
+        required: true,
         unique: true,
     },
     passwordHash: {
         type: String,
-        require: true,
+        required: true,
     },
     avatarUrl: String,
 }, 
@@ -20,4 +20,4 @@ const UserSchema = new mongoos.Schema({
     timestamps: true,
 });
 
-export default mongoos.model('User', UserSchema)
+export default mongoose.model('User', UserSchema)
