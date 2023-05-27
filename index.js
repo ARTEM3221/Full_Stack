@@ -1,51 +1,70 @@
-import  express from "express";
-import  jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
-import mongoose from "mongoose";
-import { validationResult } from "express-validator";
+import express from 'express';
+import fs from 'fs';
+import multer from 'multer';
+import cors from 'cors';
 
-import { registerValidation } from "./validations/auth.js";
+import mongoose from 'mongoose';
 
-import UserModel from "./models/User.js";
+import { registerValidation, loginValidation, postCreateValidation } from './validations.js';
 
+import { handleValidationErrors, checkAuth } from './utils/index.js';
+
+import { UserController, PostController } from './controllers/index.js';
 
 mongoose
-.connect('mongodb+srv://goroholinskyartem:3002kitra@cluster0.nbmwwud.mongodb.net/blog?retryWrites=true&w=majority'
-).then( () => console.log('DB ok'))
-.catch( (err) => console.log('DB error', err));
+  .connect(process.env.MONGODB_URI)
+  .then(() => console.log('DB ok'))
+  .catch((err) => console.log('DB error', err));
 
 const app = express();
 
-app.use(express.json());
-
-app.post('/auth/register', registerValidation, async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json(errors.array())
+const storage = multer.diskStorage({
+  destination: (_, __, cb) => {
+    if (!fs.existsSync('uploads')) {
+      fs.mkdirSync('uploads');
     }
-
-    const password = req.body.password;
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-
-
-    const doc = new UserModel({
-        email: req.body.email,
-        fullName: req.body.fullName,
-        avatarUrl: req.body.avatarUrl,
-        passwordHash: req.body.passwordHash,
-    })
-
-    const user = await doc.save();
-
-    res.json(user)
+    cb(null, 'uploads');
+  },
+  filename: (_, file, cb) => {
+    cb(null, file.originalname);
+  },
 });
 
-app.listen(4444, (err) => {
-    if(err){
-        return console.log(err);
-    }
+const upload = multer({ storage });
 
-    console.log('Server OK');
+app.use(express.json());
+app.use(cors());
+app.use('/uploads', express.static('uploads'));
+
+app.post('/auth/login', loginValidation, handleValidationErrors, UserController.login);
+app.post('/auth/register', registerValidation, handleValidationErrors, UserController.register);
+app.get('/auth/me', checkAuth, UserController.getMe);
+
+app.post('/upload', checkAuth, upload.single('image'), (req, res) => {
+  res.json({
+    url: `/uploads/${req.file.originalname}`,
+  });
+});
+
+app.get('/tags', PostController.getLastTags);
+
+app.get('/posts', PostController.getAll);
+app.get('/posts/tags', PostController.getLastTags);
+app.get('/posts/:id', PostController.getOne);
+app.post('/posts', checkAuth, postCreateValidation, handleValidationErrors, PostController.create);
+app.delete('/posts/:id', checkAuth, PostController.remove);
+app.patch(
+  '/posts/:id',
+  checkAuth,
+  postCreateValidation,
+  handleValidationErrors,
+  PostController.update,
+);
+
+app.listen(process.env.PORT || 4444, (err) => {
+  if (err) {
+    return console.log(err);
+  }
+
+  console.log('Server OK');
 });
